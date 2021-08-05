@@ -6,6 +6,7 @@ use std::{
     sync::Arc,
 };
 use telegram_bot::*;
+use tokio_compat_02::FutureExt;
 
 mod bot;
 
@@ -20,40 +21,30 @@ async fn main() -> Result<(), Error> {
     let token = buffer;
     let api = Api::new(token);
 
+    let config = serde_json::from_reader(std::io::BufReader::new(
+        std::fs::File::open("config/bot_config.json").unwrap(),
+    ))
+    .unwrap();
+
     // Initialize bot and commands
-    let mut bot = Bot::new(&api);
-    let commands = Commands::<Bot>::new(vec![CommandNode::Literal {
-        literals: vec!["/select".to_owned()],
-        child_nodes: vec![CommandNode::Final {
-            authority_level: 0,
-            command: Arc::new(|bot, _, _| {
-                let user_count = async_std::task::block_on(
-                    bot.api()
-                        .send(GetChatMembersCount::new(&bot.active_chat.unwrap())),
-                )
-                .unwrap();
-                let known_count = bot.get_active_users_count(&bot.active_chat.unwrap()) as i64;
-                if user_count == known_count {
-                    Some(format!("/select was called succefully"))
-                } else {
-                    Some(format!(
-                        "/select was called, but chat users info is not relevant. There are {} users in the chat, but only {} are known", 
-                        user_count, 
-                        known_count
-                    ))
-                }
-            }),
-        }],
-    }]);
+    let mut bot = Bot::new(config, &api);
+    bot.setup_google_sheets();
+    let commands = bot_commands();
 
     // Fetch new updates via long poll method
     let mut stream = api.stream();
-    while let Some(update) = stream.next().await {
+    while let Some(update) = stream.next().compat().await {
         match update {
             Ok(update) => match update.kind {
                 UpdateKind::Message(message) => match message.kind {
                     MessageKind::Text { ref data, .. } => {
                         bot.check_active_user(message.chat.id(), &message.from);
+                        println!(
+                            "[{}] {}: {}",
+                            message.chat.id(),
+                            get_user_name(&message.from),
+                            data
+                        );
                         bot.active_chat = Some(message.chat.id());
                         let command_message = CommandMessage {
                             sender_name: get_user_name(&message.from),
@@ -62,7 +53,7 @@ async fn main() -> Result<(), Error> {
                         };
                         for response in commands.perform_commands(&mut bot, &command_message) {
                             if let Some(response) = response {
-                                api.send(message.text_reply(response)).await?;
+                                api.send(message.text_reply(response)).compat().await?;
                             }
                         }
                     }
@@ -80,6 +71,8 @@ async fn main() -> Result<(), Error> {
             },
             Err(err) => println!("An error occured: {:?}", err),
         }
+
+        bot.update().compat().await;
     }
     Ok(())
 }

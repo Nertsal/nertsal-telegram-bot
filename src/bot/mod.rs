@@ -1,22 +1,44 @@
 use super::*;
 
+mod commands;
+mod config;
+mod sheets;
+
+pub use commands::*;
+use config::*;
+
 pub struct Bot {
+    config: BotConfig,
     api: Api,
     active_users: HashMap<ChatId, HashSet<String>>,
     pub active_chat: Option<ChatId>,
+    hub: Option<google_sheets4::Sheets>,
+    queue_save_sheets: bool,
 }
 
 impl Bot {
-    pub fn new(api: &Api) -> Self {
+    pub fn new(config: BotConfig, api: &Api) -> Self {
         Self {
+            config,
             api: api.clone(),
             active_users: HashMap::new(),
             active_chat: None,
+            hub: None,
+            queue_save_sheets: false,
         }
     }
 
     pub fn api(&self) -> &Api {
         &self.api
+    }
+
+    pub async fn update(&mut self) {
+        if self.queue_save_sheets {
+            self.queue_save_sheets = false;
+            self.save_to_google_sheets(&self.active_chat.unwrap())
+                .await
+                .unwrap();
+        }
     }
 
     pub fn get_active_users_count(&self, chat_id: &ChatId) -> usize {
@@ -27,9 +49,9 @@ impl Bot {
             + 1
     }
 
-    // pub fn get_active_users(&self, chat_id: &ChatId) -> Option<&HashSet<String>> {
-    //     self.active_users.get(chat_id)
-    // }
+    pub fn get_active_users(&self, chat_id: &ChatId) -> Option<&HashSet<String>> {
+        self.active_users.get(chat_id)
+    }
 
     pub fn add_active_user(&mut self, chat_id: ChatId, user: &User) {
         let user_name = get_user_name(user);
