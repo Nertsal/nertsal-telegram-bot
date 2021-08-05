@@ -25,13 +25,11 @@ async fn run() -> Result<(), Error> {
     let token = buffer;
     let api = Api::new(token);
 
-    let config = serde_json::from_reader(std::io::BufReader::new(
-        std::fs::File::open("config/bot_config.json").unwrap(),
-    ))
-    .unwrap();
-
     // Initialize bot and commands
-    let mut bot = Bot::new(config, &api);
+    let mut bot = Bot::from_backup(&api).unwrap_or_else(|error| {
+        println!("Could not load backup, error: {}", error);
+        Bot::new(&api)
+    });
     bot.setup_google_sheets();
     let commands = bot_commands();
 
@@ -56,7 +54,6 @@ async fn run() -> Result<(), Error> {
                             message_text: data.to_owned(),
                         };
                         for response in commands.perform_commands(&mut bot, &command_message) {
-                            println!("test");
                             if let Some(response) = response {
                                 println!(
                                     "Sending message to chat {}: {}",
@@ -65,7 +62,6 @@ async fn run() -> Result<(), Error> {
                                 );
                                 api.send(SendMessage::new(message.chat.id(), response))
                                     .await?;
-                                println!("Message sent");
                             }
                         }
                     }

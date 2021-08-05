@@ -17,7 +17,11 @@ pub struct Bot {
 }
 
 impl Bot {
-    pub fn new(config: BotConfig, api: &Api) -> Self {
+    pub fn new(api: &Api) -> Self {
+        let config = serde_json::from_reader(std::io::BufReader::new(
+            std::fs::File::open("config/bot_config.json").unwrap(),
+        ))
+        .unwrap();
         Self {
             config,
             api: api.clone(),
@@ -26,6 +30,12 @@ impl Bot {
             hub: None,
             queue_save_sheets: false,
         }
+    }
+
+    pub fn from_backup(api: &Api) -> std::io::Result<Self> {
+        let mut bot = Self::new(api);
+        bot.backup_load("backups/auto")?;
+        Ok(bot)
     }
 
     pub fn api(&self) -> &Api {
@@ -68,6 +78,7 @@ impl Bot {
                 user_name, chat_id
             );
         }
+        self.backup_auto();
     }
 
     pub fn check_active_user(&mut self, chat_id: ChatId, user: &User) {
@@ -85,6 +96,7 @@ impl Bot {
         } else {
             println!("Got a message from {} in chat {}", user_name, chat_id);
         }
+        self.backup_auto();
     }
 
     pub fn remove_active_user(&mut self, chat_id: ChatId, user: &User) {
@@ -99,5 +111,27 @@ impl Bot {
         } else {
             println!("Unknown user {} left chat {}", user_name, chat_id);
         }
+        self.backup_auto();
+    }
+
+    fn backup_auto(&self) {
+        match self.backup_create("backups/auto") {
+            Ok(_) => (),
+            Err(error) => println!("Error creating backup: {}", error),
+        }
+    }
+
+    fn backup_create(&self, path: impl AsRef<std::path::Path>) -> std::io::Result<()> {
+        serde_json::to_writer(
+            std::io::BufWriter::new(std::fs::File::create(path)?),
+            &self.active_users,
+        )?;
+        Ok(())
+    }
+
+    fn backup_load(&mut self, path: impl AsRef<std::path::Path>) -> std::io::Result<()> {
+        self.active_users =
+            serde_json::from_reader(std::io::BufReader::new(std::fs::File::open(path)?))?;
+        Ok(())
     }
 }
