@@ -63,7 +63,8 @@ async fn run() -> Result<(), Error> {
                                     message.chat.id(),
                                     response
                                 );
-                                api.send(message.text_reply(response)).await?;
+                                api.send(SendMessage::new(message.chat.id(), response))
+                                    .await?;
                                 println!("Message sent");
                             }
                         }
