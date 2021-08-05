@@ -14,6 +14,10 @@ use bot::*;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    run().compat().await
+}
+
+async fn run() -> Result<(), Error> {
     let mut buffer = String::new();
     std::io::BufReader::new(std::fs::File::open("secrets/token.txt").unwrap())
         .read_to_string(&mut buffer)
@@ -33,18 +37,18 @@ async fn main() -> Result<(), Error> {
 
     // Fetch new updates via long poll method
     let mut stream = api.stream();
-    while let Some(update) = stream.next().compat().await {
+    while let Some(update) = stream.next().await {
         match update {
             Ok(update) => match update.kind {
                 UpdateKind::Message(message) => match message.kind {
                     MessageKind::Text { ref data, .. } => {
-                        bot.check_active_user(message.chat.id(), &message.from);
                         println!(
                             "[{}] {}: {}",
                             message.chat.id(),
                             get_user_name(&message.from),
                             data
                         );
+                        bot.check_active_user(message.chat.id(), &message.from);
                         bot.active_chat = Some(message.chat.id());
                         let command_message = CommandMessage {
                             sender_name: get_user_name(&message.from),
@@ -52,8 +56,15 @@ async fn main() -> Result<(), Error> {
                             message_text: data.to_owned(),
                         };
                         for response in commands.perform_commands(&mut bot, &command_message) {
+                            println!("test");
                             if let Some(response) = response {
-                                api.send(message.text_reply(response)).compat().await?;
+                                println!(
+                                    "Sending message to chat {}: {}",
+                                    message.chat.id(),
+                                    response
+                                );
+                                api.send(message.text_reply(response)).await?;
+                                println!("Message sent");
                             }
                         }
                     }
@@ -72,7 +83,9 @@ async fn main() -> Result<(), Error> {
             Err(err) => println!("An error occured: {:?}", err),
         }
 
-        bot.update().compat().await;
+        println!("Updating bot");
+        bot.update().await;
+        println!("Waiting for next update");
     }
     Ok(())
 }

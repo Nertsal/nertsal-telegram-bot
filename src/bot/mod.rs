@@ -35,9 +35,9 @@ impl Bot {
     pub async fn update(&mut self) {
         if self.queue_save_sheets {
             self.queue_save_sheets = false;
-            self.save_to_google_sheets(&self.active_chat.unwrap())
-                .await
-                .unwrap();
+            if let Some(active_chat) = &self.active_chat {
+                self.save_to_google_sheets(active_chat).await.unwrap();
+            }
         }
     }
 

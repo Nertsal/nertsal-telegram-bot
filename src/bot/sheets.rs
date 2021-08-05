@@ -16,7 +16,6 @@ impl Bot {
             hyper::Client::builder().build(hyper_rustls::HttpsConnector::with_native_roots()),
             auth,
         ));
-        self.queue_save_sheets = true;
     }
 
     pub async fn save_to_google_sheets(&self, chat_id: &ChatId) -> google_sheets4::Result<()> {
