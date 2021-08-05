@@ -46,7 +46,7 @@ async fn run() -> Result<(), Error> {
                             get_user_name(&message.from),
                             data
                         );
-                        bot.check_active_user(message.chat.id(), &message.from);
+                        bot.check_active_user(message.chat.id(), get_user_name(&message.from));
                         bot.active_chat = Some(message.chat.id());
                         let command_message = CommandMessage {
                             sender_name: get_user_name(&message.from),
@@ -67,11 +67,11 @@ async fn run() -> Result<(), Error> {
                     }
                     MessageKind::NewChatMembers { data } => {
                         for user in data {
-                            bot.add_active_user(message.chat.id(), &user);
+                            bot.add_active_user(message.chat.id(), get_user_name(&user));
                         }
                     }
-                    MessageKind::LeftChatMember { data } => {
-                        bot.remove_active_user(message.chat.id(), &data);
+                    MessageKind::LeftChatMember { ref data } => {
+                        bot.remove_active_user(message.chat.id(), &get_user_name(data));
                     }
                     _ => println!("Unhandled message: {:?}", message),
                 },
