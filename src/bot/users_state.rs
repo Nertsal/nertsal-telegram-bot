@@ -20,7 +20,7 @@ impl UsersState {
     }
 
     pub fn remove_active_user(&mut self, user: &ChatUser) -> bool {
-        self.active_users.remove(user)
+        self.active_users.remove(user) || self.chosen_users.remove(user)
     }
 
     pub fn add_chosen_user(&mut self, user: ChatUser) {
