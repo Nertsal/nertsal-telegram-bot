@@ -28,7 +28,7 @@ impl Bot {
             api: api.clone(),
             users_state: UsersState::new(),
             hub: None,
-            queue_save_sheets: false,
+            queue_save_sheets: true,
         }
     }
 
@@ -131,7 +131,8 @@ impl Bot {
         self.backup_auto();
     }
 
-    fn backup_auto(&self) {
+    fn backup_auto(&mut self) {
+        self.queue_save_sheets = true;
         match self.backup_create("backups/auto") {
             Ok(_) => (),
             Err(error) => println!("Error creating backup: {}", error),

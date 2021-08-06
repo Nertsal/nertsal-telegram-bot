@@ -24,7 +24,6 @@ impl Bot {
             .choose(&mut rand::thread_rng())
             .unwrap()
             .clone();
-        self.queue_save_sheets = true;
         if self.choose_active_user(random_user.clone()) {
             Some(format!("{} has been chosen!", random_user.name))
         } else {
