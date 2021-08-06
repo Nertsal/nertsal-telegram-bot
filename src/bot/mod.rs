@@ -50,7 +50,7 @@ impl Bot {
     }
 
     pub fn get_user_authority_level(&self, user: &ChatUser) -> UserAuthorityLevel {
-        if self.get_all_users().any(|user| *user == *user) {
+        if self.get_all_users().any(|chat_user| *chat_user == *user) {
             let admins = async_std::task::block_on(
                 self.api
                     .send(GetChatAdministrators::new(self.config.main_chat)),
@@ -90,34 +90,35 @@ impl Bot {
     pub fn add_active_user(&mut self, user: ChatUser) {
         if self.users_state.add_active_user(user.clone()) {
             println!("User {} joined the chat", user.name);
+            self.backup_auto();
         } else {
             println!("User {} joined the chat but already existed", user.name);
         }
-        self.backup_auto();
     }
 
     pub fn check_active_user(&mut self, user: ChatUser) {
         if self.users_state.add_active_user(user.clone()) {
             println!("Got a message from unknown user {}", user.name);
+            self.backup_auto();
         } else {
             println!("Got a message from {}", user.name);
         }
-        self.backup_auto();
     }
 
     pub fn remove_active_user(&mut self, user: &ChatUser) {
         if self.users_state.remove_active_user(user) {
             println!("User {} left the chat", user.name);
+            self.backup_auto();
         } else {
             println!("Unknown user {} left the chat", user.name);
         }
-        self.backup_auto();
     }
 
     pub fn choose_active_user(&mut self, user: ChatUser) -> bool {
         if self.users_state.remove_active_user(&user) {
             self.users_state.add_chosen_user(user.clone());
             println!("Chose user {}", user.name);
+            self.backup_auto();
             true
         } else {
             println!("Failed to choose user {}", user.name);
@@ -127,6 +128,7 @@ impl Bot {
 
     pub fn reset_chosen_users(&mut self) {
         self.users_state.reset_chosen_users();
+        self.backup_auto();
     }
 
     fn backup_auto(&self) {

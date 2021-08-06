@@ -39,7 +39,7 @@ async fn run() -> Result<(), Error> {
                     MessageKind::Text { ref data, .. } => {
                         let user = ChatUser::new(&message.from);
                         let chat_id = message.chat.id();
-                        println!("[{}] {}: {}", chat_id, user.name, data);
+                        println!("[{}] {}({}): {}", chat_id, user.name, user.id, data);
                         let user_authority_level = bot.get_user_authority_level(&user);
                         if chat_id == bot.config.main_chat {
                             bot.check_active_user(user.clone());

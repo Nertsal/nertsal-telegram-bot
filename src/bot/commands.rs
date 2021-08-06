@@ -67,7 +67,7 @@ pub fn bot_commands() -> Commands<Bot, ChatUser> {
                     Some(format!(
                         "@{}, your authority level is {:?}",
                         sender.name,
-                        bot.get_user_authority_level(&sender)
+                        bot.get_user_authority_level(sender)
                     ))
                 }),
             }],

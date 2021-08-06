@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 pub struct UsersState {
     pub active_users: HashSet<ChatUser>,
     pub chosen_users: HashSet<ChatUser>,
+    pub all_chosen_users: HashSet<ChatUser>,
 }
 
 impl UsersState {
@@ -12,11 +13,16 @@ impl UsersState {
         Self {
             active_users: HashSet::new(),
             chosen_users: HashSet::new(),
+            all_chosen_users: HashSet::new(),
         }
     }
 
     pub fn add_active_user(&mut self, user: ChatUser) -> bool {
-        !self.chosen_users.contains(&user) && self.active_users.insert(user)
+        if self.all_chosen_users.contains(&user) {
+            self.chosen_users.insert(user)
+        } else {
+            self.active_users.insert(user)
+        }
     }
 
     pub fn remove_active_user(&mut self, user: &ChatUser) -> bool {
@@ -24,17 +30,19 @@ impl UsersState {
     }
 
     pub fn add_chosen_user(&mut self, user: ChatUser) {
-        assert!(self.chosen_users.insert(user))
+        assert!(self.chosen_users.insert(user.clone()));
+        assert!(self.all_chosen_users.insert(user));
     }
 
     pub fn reset_chosen_users(&mut self) {
         for chosen_user in self.chosen_users.drain() {
             self.active_users.insert(chosen_user);
         }
+        self.all_chosen_users.clear();
     }
 }
 
-#[derive(Clone, Hash, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, Eq, Serialize, Deserialize)]
 pub struct ChatUser {
     pub name: String,
     pub id: UserId,
