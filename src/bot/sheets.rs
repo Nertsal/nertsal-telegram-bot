@@ -25,7 +25,7 @@ impl Bot {
         let mut rows = Vec::with_capacity(chosen_users.len() + active_users.len() + 1);
 
         rows.push(values_to_row_data(
-            vec!["Username".to_owned()],
+            vec!["Username".to_owned(), "Status".to_owned()],
             Some(CellFormat {
                 text_format: Some(TextFormat {
                     bold: Some(true),
@@ -35,15 +35,31 @@ impl Bot {
             }),
         ));
 
-        for chosen_user in chosen_users {
+        for active_user in active_users {
             rows.push(values_to_row_data(
-                vec![chosen_user.name.to_owned(), "Chosen".to_owned()],
-                None,
+                vec![active_user.name.to_owned(), "Available".to_owned()],
+                Some(CellFormat {
+                    background_color: Some(Color {
+                        green: Some(1.),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                }),
             ));
         }
 
-        for active_user in active_users {
-            rows.push(values_to_row_data(vec![active_user.name.to_owned()], None));
+        for chosen_user in chosen_users {
+            rows.push(values_to_row_data(
+                vec![chosen_user.name.to_owned(), "Chosen".to_owned()],
+                Some(CellFormat {
+                    background_color: Some(Color {
+                        red: Some(1.),
+                        green: Some(1.),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                }),
+            ));
         }
 
         let update_values = BatchUpdateSpreadsheetRequest {

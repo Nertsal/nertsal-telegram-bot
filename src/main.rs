@@ -30,6 +30,10 @@ async fn run() -> Result<(), Error> {
     bot.setup_google_sheets();
     let commands = bot_commands();
 
+    println!("Updating bot");
+    bot.update().await;
+    println!("Waiting for next update");
+
     // Fetch new updates via long poll method
     let mut stream = api.stream();
     while let Some(update) = stream.next().await {
