@@ -18,15 +18,11 @@ impl Bot {
         ));
     }
 
-    pub async fn save_to_google_sheets(&self, chat_id: &ChatId) -> google_sheets4::Result<()> {
+    pub async fn save_to_google_sheets(&self) -> google_sheets4::Result<()> {
         use google_sheets4::api::*;
-        let chosen_users = self.get_chosen_users(chat_id);
-        let active_users = self.get_active_users(chat_id);
-        let mut rows = Vec::with_capacity(
-            chosen_users.map(|users| users.len()).unwrap_or(0)
-                + active_users.map(|users| users.len()).unwrap_or(0)
-                + 1,
-        );
+        let chosen_users = self.get_chosen_users();
+        let active_users = self.get_active_users();
+        let mut rows = Vec::with_capacity(chosen_users.len() + active_users.len() + 1);
 
         rows.push(values_to_row_data(
             vec!["Username".to_owned()],
@@ -39,19 +35,15 @@ impl Bot {
             }),
         ));
 
-        if let Some(chosen_users) = chosen_users {
-            for chosen_user in chosen_users {
-                rows.push(values_to_row_data(
-                    vec![chosen_user.to_owned(), "Chosen".to_owned()],
-                    None,
-                ));
-            }
+        for chosen_user in chosen_users {
+            rows.push(values_to_row_data(
+                vec![chosen_user.name.to_owned(), "Chosen".to_owned()],
+                None,
+            ));
         }
 
-        if let Some(active_users) = active_users {
-            for active_user in active_users {
-                rows.push(values_to_row_data(vec![active_user.to_owned()], None));
-            }
+        for active_user in active_users {
+            rows.push(values_to_row_data(vec![active_user.name.to_owned()], None));
         }
 
         let update_values = BatchUpdateSpreadsheetRequest {

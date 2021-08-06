@@ -1,15 +1,12 @@
 use futures::StreamExt;
 use nertsal_commands::*;
-use std::{
-    collections::{HashMap, HashSet},
-    io::Read,
-    sync::Arc,
-};
+use std::{collections::HashSet, io::Read, sync::Arc};
 use telegram_bot::*;
 use tokio_compat_02::FutureExt;
 
 mod bot;
 
+use bot::users_state::ChatUser;
 use bot::*;
 
 #[tokio::main]
@@ -40,38 +37,32 @@ async fn run() -> Result<(), Error> {
             Ok(update) => match update.kind {
                 UpdateKind::Message(message) => match message.kind {
                     MessageKind::Text { ref data, .. } => {
-                        println!(
-                            "[{}] {}: {}",
-                            message.chat.id(),
-                            get_user_name(&message.from),
-                            data
-                        );
-                        bot.check_active_user(message.chat.id(), get_user_name(&message.from));
-                        bot.active_chat = Some(message.chat.id());
+                        let user = ChatUser::new(&message.from);
+                        let chat_id = message.chat.id();
+                        println!("[{}] {}: {}", chat_id, user.name, data);
+                        let user_authority_level = bot.get_user_authority_level(&user);
+                        if chat_id == bot.config.main_chat {
+                            bot.check_active_user(user.clone());
+                        }
                         let command_message = CommandMessage {
-                            sender_name: get_user_name(&message.from),
-                            authority_level: 0,
+                            authority_level: user_authority_level as usize,
+                            sender: user,
                             message_text: data.to_owned(),
                         };
                         for response in commands.perform_commands(&mut bot, &command_message) {
                             if let Some(response) = response {
-                                println!(
-                                    "Sending message to chat {}: {}",
-                                    message.chat.id(),
-                                    response
-                                );
-                                api.send(SendMessage::new(message.chat.id(), response))
-                                    .await?;
+                                println!("Sending message: {}", response);
+                                api.send(SendMessage::new(chat_id, response)).await?;
                             }
                         }
                     }
                     MessageKind::NewChatMembers { data } => {
                         for user in data {
-                            bot.add_active_user(message.chat.id(), get_user_name(&user));
+                            bot.add_active_user(ChatUser::new(&user));
                         }
                     }
                     MessageKind::LeftChatMember { ref data } => {
-                        bot.remove_active_user(message.chat.id(), &get_user_name(data));
+                        bot.remove_active_user(&ChatUser::new(data));
                     }
                     _ => println!("Unhandled message: {:?}", message),
                 },

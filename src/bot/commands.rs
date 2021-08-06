@@ -3,13 +3,13 @@ use rand::seq::IteratorRandom;
 
 impl Bot {
     pub fn select(&mut self) -> Response {
-        let chat_id = self.active_chat.unwrap();
+        let chat_id = self.config.main_chat;
         let user_count = async_std::task::block_on(
             self.api()
                 .send(GetChatMembersCount::new(chat_id)),
         )
         .unwrap();
-        let known_count = self.get_users_count(&chat_id) as i64;
+        let known_count = self.get_users_count() as i64;
         let mut response = if user_count == known_count {
             format!("/select was called succefully. ")
         } else {
@@ -20,38 +20,54 @@ impl Bot {
             )
         };
 
-        let mut users = self.get_active_users(&chat_id).unwrap();
+        let mut users = self.get_active_users();
         if users.len() == 0 {
-            self.reset_chosen_users(chat_id);
-            users = self.get_active_users(&chat_id).unwrap();
+            self.reset_chosen_users();
+            users = self.get_active_users();
         }
         let random_user = users.iter().choose(&mut rand::thread_rng()).unwrap().clone();
-        if self.choose_active_user(chat_id, random_user.clone()) {
-            response.push_str(&format!("{} has been chosen!", random_user))
+        if self.choose_active_user( random_user.clone()) {
+            response.push_str(&format!("{} has been chosen!", random_user.name))
         }
         self.queue_save_sheets = true;
         Some(response)
     }
 }
 
-pub fn bot_commands() -> Commands<Bot> {
+pub fn bot_commands() -> Commands<Bot, ChatUser> {
     Commands::new(vec![
         CommandNode::Literal {
             literals: vec!["/select".to_owned()],
             child_nodes: vec![CommandNode::Final {
-                authority_level: 0,
+                authority_level: UserAuthorityLevel::MainChatUser as usize,
                 command: Arc::new(|bot, _, _| bot.select()),
             }],
         },
         CommandNode::Literal {
             literals: vec!["/save".to_owned()],
             child_nodes: vec![CommandNode::Final {
-                authority_level: 0,
+                authority_level: UserAuthorityLevel::Admin as usize,
                 command: Arc::new(|bot, _, _| {
                     bot.queue_save_sheets = true;
                     None
                 }),
             }],
         },
+        CommandNode::Literal {
+            literals: vec!["/authority".to_owned()],
+            child_nodes: vec![CommandNode::Final {
+                authority_level: UserAuthorityLevel::RandomUser as usize,
+                command: Arc::new(|bot, sender, _| {
+                    Some(format!("@{}, your authority level is {:?}", sender.name, bot.get_user_authority_level(&sender)))
+                })
+            }]
+        }
     ])
+}
+
+#[derive(Debug)]
+pub enum UserAuthorityLevel {
+    RandomUser = 0,
+    MainChatUser = 1,
+    Admin = 2,
 }

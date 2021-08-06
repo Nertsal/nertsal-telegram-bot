@@ -3,17 +3,16 @@ use super::*;
 mod commands;
 mod config;
 mod sheets;
-mod users_state;
+pub mod users_state;
 
 pub use commands::*;
 use config::*;
 use users_state::*;
 
 pub struct Bot {
-    config: BotConfig,
+    pub config: BotConfig,
     api: Api,
     users_state: UsersState,
-    pub active_chat: Option<ChatId>,
     hub: Option<google_sheets4::Sheets>,
     queue_save_sheets: bool,
 }
@@ -28,7 +27,6 @@ impl Bot {
             config,
             api: api.clone(),
             users_state: UsersState::new(),
-            active_chat: None,
             hub: None,
             queue_save_sheets: false,
         }
@@ -47,75 +45,88 @@ impl Bot {
     pub async fn update(&mut self) {
         if self.queue_save_sheets {
             self.queue_save_sheets = false;
-            if let Some(active_chat) = &self.active_chat {
-                self.save_to_google_sheets(active_chat).await.unwrap();
+            self.save_to_google_sheets().await.unwrap();
+        }
+    }
+
+    pub fn get_user_authority_level(&self, user: &ChatUser) -> UserAuthorityLevel {
+        if self.get_all_users().any(|user| *user == *user) {
+            let admins = async_std::task::block_on(
+                self.api
+                    .send(GetChatAdministrators::new(self.config.main_chat)),
+            )
+            .unwrap();
+            if admins
+                .iter()
+                .any(|member| ChatUser::new(&member.user) == *user)
+            {
+                UserAuthorityLevel::Admin
+            } else {
+                UserAuthorityLevel::MainChatUser
             }
+        } else {
+            UserAuthorityLevel::RandomUser
         }
     }
 
-    pub fn get_users_count(&self, chat_id: &ChatId) -> usize {
-        self.users_state.get_active_users_count(chat_id)
-            + self.users_state.get_chosen_users_count(chat_id)
-            + 1
+    pub fn get_users_count(&self) -> usize {
+        self.users_state.active_users.len() + self.users_state.chosen_users.len() + 1
     }
 
-    pub fn get_active_users(&self, chat_id: &ChatId) -> Option<&HashSet<String>> {
-        self.users_state.get_active_users(chat_id)
+    pub fn get_all_users(&self) -> impl Iterator<Item = &ChatUser> {
+        self.get_chosen_users()
+            .iter()
+            .chain(self.get_active_users().iter())
     }
 
-    pub fn get_chosen_users(&self, chat_id: &ChatId) -> Option<&HashSet<String>> {
-        self.users_state.get_chosen_users(chat_id)
+    pub fn get_active_users(&self) -> &HashSet<ChatUser> {
+        &self.users_state.active_users
     }
 
-    pub fn add_active_user(&mut self, chat_id: ChatId, user_name: String) {
-        if self.users_state.add_active_user(chat_id, user_name.clone()) {
-            println!("User {} joined chat {}", user_name, chat_id);
+    pub fn get_chosen_users(&self) -> &HashSet<ChatUser> {
+        &self.users_state.chosen_users
+    }
+
+    pub fn add_active_user(&mut self, user: ChatUser) {
+        if self.users_state.add_active_user(user.clone()) {
+            println!("User {} joined the chat", user.name);
         } else {
-            println!(
-                "User {} joined chat {} but already existed",
-                user_name, chat_id
-            );
+            println!("User {} joined the chat but already existed", user.name);
         }
         self.backup_auto();
     }
 
-    pub fn check_active_user(&mut self, chat_id: ChatId, user_name: String) {
-        if self
-            .users_state
-            .add_active_user(chat_id, user_name.clone())
-        {
-            println!(
-                "Got a message from unknown user {} in chat {}",
-                user_name, chat_id
-            );
+    pub fn check_active_user(&mut self, user: ChatUser) {
+        if self.users_state.add_active_user(user.clone()) {
+            println!("Got a message from unknown user {}", user.name);
         } else {
-            println!("Got a message from {} in chat {}", user_name, chat_id);
+            println!("Got a message from {}", user.name);
         }
         self.backup_auto();
     }
 
-    pub fn remove_active_user(&mut self, chat_id: ChatId, user_name: &String) {
-        if self.users_state.remove_active_user(chat_id, user_name) {
-            println!("User {} left chat {}", user_name, chat_id);
+    pub fn remove_active_user(&mut self, user: &ChatUser) {
+        if self.users_state.remove_active_user(user) {
+            println!("User {} left the chat", user.name);
         } else {
-            println!("Unknown user {} left chat {}", user_name, chat_id);
+            println!("Unknown user {} left the chat", user.name);
         }
         self.backup_auto();
     }
 
-    pub fn choose_active_user(&mut self, chat_id: ChatId, user_name: String) -> bool {
-        if self.users_state.remove_active_user(chat_id, &user_name) {
-            self.users_state.add_chosen_user(chat_id, user_name.clone());
-            println!("Chose user {} in chat {}", user_name, chat_id);
+    pub fn choose_active_user(&mut self, user: ChatUser) -> bool {
+        if self.users_state.remove_active_user(&user) {
+            self.users_state.add_chosen_user(user.clone());
+            println!("Chose user {}", user.name);
             true
         } else {
-            println!("Unable to choose user {} in chat {}", user_name, chat_id);
+            println!("Failed to choose user {}", user.name);
             false
         }
     }
 
-    pub fn reset_chosen_users(&mut self, chat_id: ChatId) {
-        self.users_state.reset_chosen_users(chat_id);
+    pub fn reset_chosen_users(&mut self) {
+        self.users_state.reset_chosen_users();
     }
 
     fn backup_auto(&self) {
